@@ -1,518 +1,585 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { isConfigured, supabase } from "./supabase";
-
-const seedPosts = [
-  { id: "demo-1", username: "@BassDestroyer", score: 94, tier: "Nuclear Grade", duration: "4.8s", reactions: 1264, audio_url: "", created_at: new Date().toISOString() },
-  { id: "demo-2", username: "@SilentPressure", score: 87, tier: "Thunderclass", duration: "3.2s", reactions: 804, audio_url: "", created_at: new Date().toISOString() },
-  { id: "demo-3", username: "@RoomTone", score: 61, tier: "Air Strike", duration: "2.1s", reactions: 190, audio_url: "", created_at: new Date().toISOString() }
-];
-
-const seedMessages = [
-  { id: "msg-1", username: "@nocturnal", content: "94 is insane." },
-  { id: "msg-2", username: "@lowfreq", content: "Need a duel after that." },
-  { id: "msg-3", username: "@parisgas", content: "chat is moving crazy tonight" },
-  { id: "msg-4", username: "@void", content: "that waveform is illegal" }
-];
-
-function tierFromScore(score) {
-  if (score >= 92) return "Nuclear Grade";
-  if (score >= 80) return "Thunderclass";
-  if (score >= 68) return "Air Strike";
-  return "Low Pressure";
+* {
+  box-sizing: border-box;
 }
 
-function formatSeconds(ms) {
-  const seconds = Math.max(0.1, ms / 1000);
-  return `${seconds.toFixed(1)}s`;
+body {
+  margin: 0;
+  background: #000;
+  color: white;
+  font-family: Inter, Arial, Helvetica, sans-serif;
 }
 
-function makeWave(score) {
-  return Array.from({ length: 26 }, (_, i) => {
-    const noise = Math.random() * 52;
-    const curve = Math.sin(i / 2.2) * 18;
-    return Math.max(8, Math.min(58, Math.round(noise + curve + score / 8)));
-  });
+button,
+input {
+  font-family: inherit;
 }
 
-function Waveform({ score }) {
-  const bars = useMemo(() => makeWave(score || 60), [score]);
-  return (
-    <div className="wave">
-      {bars.map((h, i) => <span key={i} style={{ height: `${h}px` }} />)}
-    </div>
-  );
+button {
+  cursor: pointer;
 }
 
-function PostCard({ post, onReact }) {
-  return (
-    <article className="post">
-      <div className="postTop">
-        <div>
-          <div className="eyebrow"><i /> Live drop</div>
-          <h3>{post.username || "@anonymous"}</h3>
-          <p>{post.tier || tierFromScore(post.score)} · {post.duration || "3.0s"}</p>
-        </div>
-        <div className="score">
-          <span>Fart Score</span>
-          <strong>{post.score}</strong>
-        </div>
-      </div>
-
-      <div className="player">
-        {post.audio_url ? (
-          <audio controls src={post.audio_url} />
-        ) : (
-          <>
-            <button className="play">▶</button>
-            <Waveform score={post.score} />
-          </>
-        )}
-      </div>
-
-      <div className="reactions">
-        <button onClick={() => onReact(post)}>💀 {post.reactions || 0}</button>
-        <button onClick={() => onReact(post)}>🔥 Fire</button>
-        <button onClick={() => onReact(post)}>☣️ Toxic</button>
-        <button onClick={() => onReact(post)}>Vote</button>
-      </div>
-    </article>
-  );
+.landing {
+  min-height: 100vh;
+  padding: 34px clamp(22px, 5vw, 72px);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,255,255,.16), transparent 38%),
+    radial-gradient(circle at 85% 70%, rgba(255,255,255,.07), transparent 25%),
+    #000;
 }
 
-export default function App() {
-  const [entered, setEntered] = useState(false);
-  const [posts, setPosts] = useState(seedPosts);
-  const [messages, setMessages] = useState(seedMessages);
-  const [messageText, setMessageText] = useState("");
-  const [boardMode, setBoardMode] = useState("daily");
-  const [error, setError] = useState("");
+.nav,
+.appHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
 
-  const [recorderOpen, setRecorderOpen] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [scanStatus, setScanStatus] = useState("Ready");
-  const [audioBlob, setAudioBlob] = useState(null);
-  const [audioUrl, setAudioUrl] = useState("");
-  const [duration, setDuration] = useState("0.0s");
-  const [score, setScore] = useState(null);
-  const [uploading, setUploading] = useState(false);
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
 
-  const recorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const streamRef = useRef(null);
-  const startTimeRef = useRef(0);
+.logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: white;
+  color: black;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+}
 
-  const [duel, setDuel] = useState({
-    aName: "@DeepRoom",
-    bName: "@GasDealer",
-    aScore: 89,
-    bScore: 91,
-    aVotes: 214,
-    bVotes: 241,
-    round: 2
-  });
+.navLinks {
+  display: flex;
+  gap: 28px;
+  color: #a1a1aa;
+  font-size: 14px;
+}
 
-  const liveCount = useMemo(() => (12842 + posts.length * 23).toLocaleString(), [posts.length]);
+.hero {
+  min-height: calc(100vh - 90px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 960px;
+}
 
-  useEffect(() => {
-    if (!isConfigured) return;
+.livePill {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #d4d4d8;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.045);
+  padding: 10px 14px;
+  border-radius: 999px;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
 
-    fetchPosts();
-    fetchMessages();
+.livePill i,
+.eyebrow i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: white;
+  display: block;
+}
 
-    const postChannel = supabase
-      .channel("posts-live")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, payload => {
-        setPosts(prev => [payload.new, ...prev.filter(p => p.id !== payload.new.id)]);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "posts" }, payload => {
-        setPosts(prev => prev.map(p => p.id === payload.new.id ? payload.new : p));
-      })
-      .subscribe();
+.hero h1 {
+  margin: 0;
+  max-width: 900px;
+  font-size: clamp(54px, 9vw, 112px);
+  line-height: .88;
+  letter-spacing: -.078em;
+}
 
-    const messageChannel = supabase
-      .channel("messages-live")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
-        setMessages(prev => [...prev, payload.new].slice(-80));
-      })
-      .subscribe();
+.hero p {
+  max-width: 720px;
+  color: #a1a1aa;
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.55;
+  margin: 26px 0 0;
+}
 
-    return () => {
-      supabase.removeChannel(postChannel);
-      supabase.removeChannel(messageChannel);
-    };
-  }, []);
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 40px;
+}
 
-  async function fetchPosts() {
-    const { data, error } = await supabase
-      .from("posts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
+.primary,
+.secondary,
+.ghost {
+  border: 0;
+  border-radius: 18px;
+  min-height: 54px;
+  padding: 0 26px;
+  font-weight: 800;
+}
 
-    if (error) {
-      setError(error.message);
-      return;
-    }
+.primary {
+  background: white;
+  color: black;
+}
 
-    setPosts(data?.length ? data : seedPosts);
+.secondary {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255,255,255,.15);
+}
+
+.ghost {
+  background: rgba(255,255,255,.045);
+  color: white;
+  border: 1px solid rgba(255,255,255,.1);
+}
+
+.primary.compact {
+  min-height: 46px;
+  padding: 0 18px;
+}
+
+.app {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% -20%, rgba(255,255,255,.08), transparent 28%),
+    #000;
+}
+
+.appHeader {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 16px clamp(18px, 4vw, 48px);
+  border-bottom: 1px solid rgba(255,255,255,.09);
+  background: rgba(0,0,0,.78);
+  backdrop-filter: blur(16px);
+}
+
+.brand small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #71717a;
+}
+
+.headerActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.errorBox {
+  width: min(1460px, calc(100% - 32px));
+  margin: 14px auto 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(127,29,29,.62);
+  border: 1px solid rgba(248,113,113,.35);
+}
+
+.grid {
+  width: min(1460px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 20px 0 30px;
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr) 350px;
+  gap: 20px;
+}
+
+.panel,
+.post,
+.chat,
+.roomIntro {
+  border: 1px solid rgba(255,255,255,.105);
+  background: rgba(15,15,17,.78);
+  backdrop-filter: blur(20px);
+  border-radius: 28px;
+  box-shadow: 0 26px 80px rgba(0,0,0,.22);
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.panel {
+  padding: 20px;
+}
+
+.panelTitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.panelTitle h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.rankRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.045);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.rankLeft {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.rankNo {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: white;
+  color: black;
+  font-weight: 900;
+}
+
+.rankLeft strong {
+  display: block;
+  font-size: 13px;
+}
+
+.rankLeft p {
+  margin: 2px 0 0;
+  color: #71717a;
+  font-size: 12px;
+}
+
+.duelGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.duelBox {
+  text-align: left;
+  color: white;
+  border: 1px solid rgba(255,255,255,.105);
+  background: rgba(255,255,255,.035);
+  border-radius: 20px;
+  padding: 14px;
+}
+
+.duelBox span,
+.duelBox small {
+  color: #a1a1aa;
+  font-size: 12px;
+}
+
+.duelBox strong {
+  display: block;
+  margin: 6px 0 10px;
+  font-size: 28px;
+}
+
+.meter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.1);
+  margin-bottom: 8px;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: white;
+}
+
+.pillLight {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: white;
+  color: black;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.microcopy {
+  color: #71717a;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 14px 0 0;
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.roomIntro {
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.roomIntro h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -.04em;
+}
+
+.roomIntro p {
+  margin: 4px 0 0;
+  color: #71717a;
+}
+
+.roomIntro span {
+  color: #a1a1aa;
+  border: 1px solid rgba(255,255,255,.105);
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.post {
+  padding: 20px;
+}
+
+.postTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.eyebrow {
+  color: #a1a1aa;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.post h3 {
+  margin: 5px 0 3px;
+  font-size: 20px;
+}
+
+.post p {
+  margin: 0;
+  color: #71717a;
+  font-size: 14px;
+}
+
+.score {
+  min-width: 116px;
+  text-align: right;
+  border: 1px solid rgba(255,255,255,.105);
+  background: rgba(255,255,255,.04);
+  border-radius: 20px;
+  padding: 12px 14px;
+}
+
+.score span {
+  display: block;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: .18em;
+  font-size: 10px;
+}
+
+.score strong {
+  display: block;
+  line-height: 1;
+  font-size: 36px;
+  margin-top: 6px;
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(255,255,255,.105);
+  background: rgba(255,255,255,.035);
+  border-radius: 22px;
+  padding: 14px;
+}
+
+.play {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: white;
+  color: black;
+}
+
+.wave {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.wave span {
+  width: 5px;
+  min-height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.78);
+}
+
+.reactions {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.reactions button {
+  border: 1px solid rgba(255,255,255,.105);
+  color: #d4d4d8;
+  background: transparent;
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 13px;
+}
+
+.chat {
+  min-height: 680px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chatHeader {
+  padding: 20px;
+  border-bottom: 1px solid rgba(255,255,255,.105);
+}
+
+.chatHeader h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.chatHeader p {
+  margin: 4px 0 0;
+  color: #71717a;
+  font-size: 12px;
+}
+
+.chatMessages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.bubble {
+  color: #d4d4d8;
+  background: rgba(255,255,255,.04);
+  border-radius: 18px;
+  padding: 11px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.bubble span {
+  color: #71717a;
+  margin-right: 8px;
+}
+
+.chatInput {
+  display: flex;
+  gap: 8px;
+  padding: 14px;
+  border-top: 1px solid rgba(255,255,255,.105);
+}
+
+.chatInput input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,.105);
+  background: black;
+  color: white;
+  border-radius: 16px;
+  padding: 0 14px;
+  outline: 0;
+}
+
+.chatInput button {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 16px;
+  background: white;
+  color: black;
+  font-weight: 900;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: 1fr;
   }
 
-  async function fetchMessages() {
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .order("created_at", { ascending: true })
-      .limit(80);
-
-    if (!error && data?.length) setMessages(data);
+  .left {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
   }
 
-  async function sendMessage() {
-    const content = messageText.trim();
-    if (!content) return;
-    setMessageText("");
+  .chat {
+    min-height: 520px;
+  }
+}
 
-    if (!isConfigured) {
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), username: "@you", content }]);
-      return;
-    }
-
-    const { error } = await supabase.from("messages").insert({ username: "@you", content });
-    if (error) setError(error.message);
+@media (max-width: 720px) {
+  .navLinks {
+    display: none;
   }
 
-  async function reactPost(post) {
-    if (!isConfigured || String(post.id).startsWith("demo")) {
-      setPosts(prev => prev.map(p => p.id === post.id ? { ...p, reactions: (p.reactions || 0) + 1 } : p));
-      return;
-    }
-
-    const { error } = await supabase
-      .from("posts")
-      .update({ reactions: (post.reactions || 0) + 1 })
-      .eq("id", post.id);
-
-    if (error) setError(error.message);
+  .hero h1 {
+    font-size: 58px;
   }
 
-  function openRecorder() {
-    setRecorderOpen(true);
-    setScanStatus("Ready");
-    setAudioBlob(null);
-    setAudioUrl("");
-    setDuration("0.0s");
-    setScore(null);
-    setError("");
+  .left {
+    grid-template-columns: 1fr;
   }
 
-  function closeRecorder() {
-    stopRecording();
-    setRecorderOpen(false);
+  .roomIntro,
+  .postTop {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
-  async function startRecording() {
-    try {
-      setError("");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      chunksRef.current = [];
-
-      const recorder = new MediaRecorder(stream);
-      recorderRef.current = recorder;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        const dur = formatSeconds(Date.now() - startTimeRef.current);
-
-        setAudioBlob(blob);
-        setAudioUrl(url);
-        setDuration(dur);
-        setRecording(false);
-        setScanStatus("Scanning speech...");
-        runSimulatedScan(dur);
-      };
-
-      startTimeRef.current = Date.now();
-      recorder.start();
-      setRecording(true);
-      setScanStatus("Recording");
-    } catch (err) {
-      setError("Microphone access blocked. Allow microphone permission in your browser.");
-    }
+  .score {
+    width: 100%;
+    text-align: left;
   }
 
-  function stopRecording() {
-    if (recorderRef.current && recorderRef.current.state === "recording") {
-      recorderRef.current.stop();
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-    setRecording(false);
+  .duelGrid {
+    grid-template-columns: 1fr;
   }
-
-  function runSimulatedScan(dur) {
-    setTimeout(() => setScanStatus("No speech detected"), 650);
-    setTimeout(() => setScanStatus("No music detected"), 1250);
-    setTimeout(() => {
-      const seconds = parseFloat(dur);
-      const generated = Math.min(99, Math.floor(58 + Math.random() * 34 + Math.min(seconds * 2, 7)));
-      setScore(generated);
-      setScanStatus("Verified");
-    }, 1900);
-  }
-
-  async function publishRecording() {
-    if (!audioBlob || !score) return;
-    setUploading(true);
-    setError("");
-
-    const post = {
-      username: "@you",
-      score,
-      tier: tierFromScore(score),
-      duration,
-      reactions: 0,
-      audio_url: ""
-    };
-
-    if (!isConfigured) {
-      setPosts(prev => [{ ...post, id: crypto.randomUUID(), audio_url: audioUrl, created_at: new Date().toISOString() }, ...prev]);
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), username: "System", content: `@you dropped a verified audio with a Fart Score of ${score}.` }]);
-      setUploading(false);
-      setRecorderOpen(false);
-      return;
-    }
-
-    const filename = `audio/${Date.now()}-${Math.random().toString(36).slice(2)}.webm`;
-    const upload = await supabase.storage.from("farts").upload(filename, audioBlob, {
-      contentType: "audio/webm",
-      upsert: false
-    });
-
-    if (upload.error) {
-      setError(upload.error.message);
-      setUploading(false);
-      return;
-    }
-
-    const publicUrl = supabase.storage.from("farts").getPublicUrl(filename).data.publicUrl;
-    const insert = await supabase.from("posts").insert({ ...post, audio_url: publicUrl });
-
-    if (insert.error) {
-      setError(insert.error.message);
-      setUploading(false);
-      return;
-    }
-
-    await supabase.from("messages").insert({
-      username: "System",
-      content: `@you dropped a verified audio with a Fart Score of ${score}.`
-    });
-
-    setUploading(false);
-    setRecorderOpen(false);
-  }
-
-  function startDuel() {
-    const aScore = Math.floor(70 + Math.random() * 29);
-    const bScore = Math.floor(70 + Math.random() * 29);
-    setDuel({
-      aName: "@you",
-      bName: "@Challenger",
-      aScore,
-      bScore,
-      aVotes: Math.floor(120 + Math.random() * 180),
-      bVotes: Math.floor(120 + Math.random() * 180),
-      round: 1
-    });
-    setMessages(prev => [...prev, { id: crypto.randomUUID(), username: "System", content: "@you started a 3-round duel. The room is voting." }]);
-  }
-
-  function voteDuel(side) {
-    setDuel(prev => ({
-      ...prev,
-      aVotes: side === "a" ? prev.aVotes + 1 : prev.aVotes,
-      bVotes: side === "b" ? prev.bVotes + 1 : prev.bVotes
-    }));
-  }
-
-  const ranked = [...posts]
-    .map(p => {
-      const multiplier = boardMode === "daily" ? 1 : boardMode === "weekly" ? 1.05 : 1.12;
-      return { ...p, boardScore: Math.min(99, Math.round((p.score || 0) * multiplier)) };
-    })
-    .sort((a, b) => b.boardScore - a.boardScore)
-    .slice(0, 5);
-
-  const totalVotes = duel.aVotes + duel.bVotes;
-
-  if (!entered) {
-    return (
-      <main className="landing">
-        <nav className="nav">
-          <div className="brand"><div className="logo">F</div>FARTER</div>
-          <div className="navLinks">
-            <span>Live room</span>
-            <span>Duels</span>
-            <span>Leaderboards</span>
-            <span>Verified audio</span>
-          </div>
-        </nav>
-
-        <section className="hero">
-          <div className="livePill"><i /> {liveCount} people live right now</div>
-          <h1>Humanity's first real-time gas network.</h1>
-          <p>Join one global room. Drop verified audio. React, vote, duel, and climb the daily, weekly and monthly rankings.</p>
-          <div className="buttons">
-            <button className="primary" onClick={() => setEntered(true)}>ENTER THE ROOM</button>
-            <button className="secondary" onClick={() => setEntered(true)}>View leaderboard</button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  return (
-    <main className="app">
-      <header className="appHeader">
-        <div className="brand">
-          <div className="logo">F</div>
-          <div>FARTER<small>Global room · {liveCount} live</small></div>
-        </div>
-        <div className="headerActions">
-          <button className="ghost" onClick={startDuel}>Start duel</button>
-          <button className="primary compact" onClick={openRecorder}>Drop audio</button>
-        </div>
-      </header>
-
-      {error && <div className="errorBox">{error}</div>}
-      {!isConfigured && <div className="errorBox">Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel.</div>}
-
-      <div className="grid">
-        <aside className="left">
-          <section className="panel">
-            <div className="panelTitle"><h2>🏆 Leaderboard</h2></div>
-            <div className="tabRow">
-              <button className={boardMode === "daily" ? "tab active" : "tab"} onClick={() => setBoardMode("daily")}>Daily</button>
-              <button className={boardMode === "weekly" ? "tab active" : "tab"} onClick={() => setBoardMode("weekly")}>Weekly</button>
-              <button className={boardMode === "monthly" ? "tab active" : "tab"} onClick={() => setBoardMode("monthly")}>Monthly</button>
-            </div>
-            {ranked.map((post, index) => (
-              <div className="rankRow" key={post.id}>
-                <div className="rankLeft">
-                  <span className="rankNo">{index + 1}</span>
-                  <div>
-                    <strong>{post.username}</strong>
-                    <p>{post.tier}</p>
-                  </div>
-                </div>
-                <b>{post.boardScore}</b>
-              </div>
-            ))}
-          </section>
-
-          <section className="panel">
-            <div className="panelTitle">
-              <h2>⚔️ Duel live</h2>
-              <span className="pillLight">Round {duel.round} / 3</span>
-            </div>
-            <div className="duelGrid">
-              <button className="duelBox" onClick={() => voteDuel("a")}>
-                <span>{duel.aName}</span>
-                <strong>{duel.aScore}</strong>
-                <div className="meter"><i style={{ width: `${(duel.aVotes / totalVotes) * 100}%` }} /></div>
-                <small>{duel.aVotes} votes</small>
-              </button>
-              <button className="duelBox" onClick={() => voteDuel("b")}>
-                <span>{duel.bName}</span>
-                <strong>{duel.bScore}</strong>
-                <div className="meter"><i style={{ width: `${(duel.bVotes / totalVotes) * 100}%` }} /></div>
-                <small>{duel.bVotes} votes</small>
-              </button>
-            </div>
-            <p className="microcopy">Each player gets 3 chances. The global chat votes after every round.</p>
-          </section>
-
-          <section className="panel">
-            <div className="panelTitle"><h2>✅ AI moderation</h2></div>
-            <p className="microcopy">MVP mode: real audio upload, simulated speech/music scan. Real AI detection needs a trained audio classifier or server-side model.</p>
-          </section>
-        </aside>
-
-        <section className="feed">
-          <div className="roomIntro">
-            <div>
-              <h1>Global live room</h1>
-              <p>One chat. One feed. Everyone live.</p>
-            </div>
-            <span>Live feed</span>
-          </div>
-
-          {posts.map(post => <PostCard key={post.id} post={post} onReact={reactPost} />)}
-        </section>
-
-        <aside className="chat">
-          <div className="chatHeader">
-            <h2>Live chat</h2>
-            <p>Everyone in the same room.</p>
-          </div>
-          <div className="chatMessages">
-            {messages.map(msg => (
-              <div className="bubble" key={msg.id || `${msg.username}-${msg.content}`}>
-                <span>{msg.username}</span>{msg.content}
-              </div>
-            ))}
-          </div>
-          <div className="chatInput">
-            <input
-              value={messageText}
-              onChange={event => setMessageText(event.target.value)}
-              onKeyDown={event => event.key === "Enter" && sendMessage()}
-              placeholder="Say something..."
-            />
-            <button onClick={sendMessage}>➤</button>
-          </div>
-        </aside>
-      </div>
-
-      {recorderOpen && (
-        <div className="modalOverlay">
-          <div className="modalCard">
-            <h2>Drop verified audio</h2>
-            <p>Record a short audio, wait for the scan, then publish it to the global room.</p>
-
-            <div className="recordPanel">
-              <div className="recordStatus">
-                <div className="timer">{duration}</div>
-                <div className={recording ? "statusPill recording" : "statusPill"}>{scanStatus}</div>
-              </div>
-
-              {audioUrl && <audio controls src={audioUrl} />}
-
-              <div className="scanSteps">
-                <div><span>Speech detection</span><b>{scanStatus === "Ready" || scanStatus === "Recording" ? "waiting" : scanStatus.includes("speech") ? "scanning..." : "passed"}</b></div>
-                <div><span>Music / soundboard detection</span><b>{scanStatus === "No music detected" || scanStatus === "Verified" ? "passed" : "waiting"}</b></div>
-                <div><span>Fart Score generation</span><b>{score ? `${score} / 100` : "waiting"}</b></div>
-              </div>
-            </div>
-
-            <div className="modalActions">
-              <button className="secondary danger" onClick={closeRecorder}>Cancel</button>
-              <div className="modalRight">
-                {!recording && !audioBlob && <button className="primary" onClick={startRecording}>Start recording</button>}
-                {recording && <button className="primary" onClick={stopRecording}>Stop</button>}
-                {audioBlob && score && <button className="primary" disabled={uploading} onClick={publishRecording}>{uploading ? "Publishing..." : "Publish"}</button>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </main>
-  );
 }
