@@ -1,6 +1,7 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App.jsx";
-import "./styles.css";
+import { createClient } from "@supabase/supabase-js";
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const isConfigured = Boolean(url && key);
+export const supabase = isConfigured ? createClient(url, key) : null;
