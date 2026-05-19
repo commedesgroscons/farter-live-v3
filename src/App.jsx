@@ -1,5 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isConfigured, supabase } from "./supabase";
+
+const demoPosts = [
+  {
+    id: "demo-1",
+    username: "@BassDestroyer",
+    score: 94,
+    tier: "Nuclear Grade",
+    duration: "4.8s",
+    reactions: 1264
+  },
+  {
+    id: "demo-2",
+    username: "@SilentPressure",
+    score: 87,
+    tier: "Thunderclass",
+    duration: "3.2s",
+    reactions: 804
+  },
+  {
+    id: "demo-3",
+    username: "@RoomTone",
+    score: 61,
+    tier: "Air Strike",
+    duration: "2.1s",
+    reactions: 190
+  }
+];
+
+const demoMessages = [
+  { id: "m1", username: "@nocturnal", content: "94 is insane." },
+  { id: "m2", username: "@lowfreq", content: "Need a duel after that." },
+  { id: "m3", username: "@parisgas", content: "chat is moving crazy tonight." }
+];
 
 function getTier(score) {
   if (score >= 92) return "Nuclear Grade";
@@ -8,21 +41,49 @@ function getTier(score) {
   return "Low Pressure";
 }
 
+function Wave({ score }) {
+  const bars = useMemo(() => {
+    return Array.from({ length: 24 }, (_, i) => {
+      const curve = Math.sin(i / 2.1) * 18;
+      const random = Math.random() * 45;
+      return Math.max(8, Math.min(58, random + curve + score / 8));
+    });
+  }, [score]);
+
+  return (
+    <div className="wave">
+      {bars.map((height, index) => (
+        <span key={index} style={{ height: `${height}px` }} />
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   const [entered, setEntered] = useState(false);
-  const [posts, setPosts] = useState([]);
-  const [messages, setMessages] = useState([]);
+  const [posts, setPosts] = useState(demoPosts);
+  const [messages, setMessages] = useState(demoMessages);
   const [chatText, setChatText] = useState("");
   const [error, setError] = useState("");
+  const [duel, setDuel] = useState({
+    a: "@DeepRoom",
+    b: "@GasDealer",
+    aScore: 89,
+    bScore: 91,
+    aVotes: 214,
+    bVotes: 241,
+    round: 2
+  });
+
+  const liveCount = 12842 + posts.length * 23;
 
   useEffect(() => {
     if (!isConfigured) {
-      setError("Supabase is not configured.");
+      setError("Supabase is not configured in Vercel.");
       return;
     }
 
-    fetchPosts();
-    fetchMessages();
+    loadData();
 
     const postsChannel = supabase
       .channel("posts-live")
@@ -30,7 +91,19 @@ export default function App() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "posts" },
         (payload) => {
-          setPosts((prev) => [payload.new, ...prev]);
+          setPosts((prev) => [
+            payload.new,
+            ...prev.filter((p) => p.id !== payload.new.id)
+          ]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "posts" },
+        (payload) => {
+          setPosts((prev) =>
+            prev.map((p) => (p.id === payload.new.id ? payload.new : p))
+          );
         }
       )
       .subscribe();
@@ -41,7 +114,7 @@ export default function App() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
+          setMessages((prev) => [...prev, payload.new].slice(-80));
         }
       )
       .subscribe();
@@ -52,66 +125,150 @@ export default function App() {
     };
   }, []);
 
-  async function fetchPosts() {
-    const { data, error } = await supabase
+  async function loadData() {
+    const postsResult = await supabase
       .from("posts")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-    if (error) {
-      setError(error.message);
+    if (postsResult.error) {
+      setError(postsResult.error.message);
       return;
     }
 
-    setPosts(data || []);
-  }
+    if (postsResult.data && postsResult.data.length > 0) {
+      setPosts(postsResult.data);
+    }
 
-  async function fetchMessages() {
-    const { data, error } = await supabase
+    const messagesResult = await supabase
       .from("messages")
       .select("*")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(80);
 
-    if (error) {
-      setError(error.message);
+    if (messagesResult.error) {
+      setError(messagesResult.error.message);
       return;
     }
 
-    setMessages(data || []);
+    if (messagesResult.data && messagesResult.data.length > 0) {
+      setMessages(messagesResult.data);
+    }
   }
 
   async function dropAudio() {
+    setError("");
+
     const score = Math.floor(58 + Math.random() * 42);
 
-    const { error } = await supabase.from("posts").insert({
+    const newPost = {
       username: "@you",
       score,
       tier: getTier(score),
       duration: `${(1.4 + Math.random() * 4.8).toFixed(1)}s`,
-      reactions: 0,
-      audio_url: ""
-    });
+      reactions: 0
+    };
 
-    if (error) {
-      setError(error.message);
+    if (!isConfigured) {
+      setPosts((prev) => [{ id: crypto.randomUUID(), ...newPost }, ...prev]);
+      return;
+    }
+
+    const result = await supabase.from("posts").insert(newPost);
+
+    if (result.error) {
+      setError(result.error.message);
     }
   }
 
   async function sendMessage() {
-    if (!chatText.trim()) return;
+    setError("");
 
-    const { error } = await supabase.from("messages").insert({
+    const content = chatText.trim();
+
+    if (!content) return;
+
+    setChatText("");
+
+    const newMessage = {
       username: "@you",
-      content: chatText.trim()
-    });
+      content
+    };
 
-    if (error) {
-      setError(error.message);
+    if (!isConfigured) {
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), ...newMessage }
+      ]);
       return;
     }
 
-    setChatText("");
+    const result = await supabase.from("messages").insert(newMessage);
+
+    if (result.error) {
+      setError(result.error.message);
+    }
   }
+
+  async function reactPost(post) {
+    setError("");
+
+    const updatedReactions = (post.reactions || 0) + 1;
+
+    if (!isConfigured || String(post.id).startsWith("demo")) {
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === post.id ? { ...p, reactions: updatedReactions } : p
+        )
+      );
+      return;
+    }
+
+    const result = await supabase
+      .from("posts")
+      .update({ reactions: updatedReactions })
+      .eq("id", post.id);
+
+    if (result.error) {
+      setError(result.error.message);
+    }
+  }
+
+  function startDuel() {
+    setDuel({
+      a: "@you",
+      b: "@Challenger",
+      aScore: Math.floor(70 + Math.random() * 29),
+      bScore: Math.floor(70 + Math.random() * 29),
+      aVotes: Math.floor(100 + Math.random() * 200),
+      bVotes: Math.floor(100 + Math.random() * 200),
+      round: 1
+    });
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        username: "System",
+        content: "@you started a 3-round duel. The room is voting."
+      }
+    ]);
+  }
+
+  function voteDuel(side) {
+    setDuel((prev) => ({
+      ...prev,
+      aVotes: side === "a" ? prev.aVotes + 1 : prev.aVotes,
+      bVotes: side === "b" ? prev.bVotes + 1 : prev.bVotes
+    }));
+  }
+
+  const rankedPosts = [...posts]
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 5);
+
+  const totalVotes = duel.aVotes + duel.bVotes;
 
   if (!entered) {
     return (
@@ -121,6 +278,7 @@ export default function App() {
             <div className="logo">F</div>
             FARTER
           </div>
+
           <div className="navLinks">
             <span>Live room</span>
             <span>Duels</span>
@@ -132,7 +290,7 @@ export default function App() {
         <section className="hero">
           <div className="livePill">
             <i />
-            {12842 + posts.length * 23} people live right now
+            {liveCount.toLocaleString()} people live right now
           </div>
 
           <h1>Humanity's first real-time gas network.</h1>
@@ -146,6 +304,7 @@ export default function App() {
             <button className="primary" onClick={() => setEntered(true)}>
               ENTER THE ROOM
             </button>
+
             <button className="secondary" onClick={() => setEntered(true)}>
               View leaderboard
             </button>
@@ -160,14 +319,18 @@ export default function App() {
       <header className="appHeader">
         <div className="brand">
           <div className="logo">F</div>
+
           <div>
             FARTER
-            <small>Global room · {12842 + posts.length * 23} live</small>
+            <small>Global room · {liveCount.toLocaleString()} live</small>
           </div>
         </div>
 
         <div className="headerActions">
-          <button className="ghost">Start duel</button>
+          <button className="ghost" onClick={startDuel}>
+            Start duel
+          </button>
+
           <button className="primary compact" onClick={dropAudio}>
             Drop audio
           </button>
@@ -183,46 +346,49 @@ export default function App() {
               <h2>🏆 Leaderboard</h2>
             </div>
 
-            {[...posts]
-              .sort((a, b) => b.score - a.score)
-              .slice(0, 5)
-              .map((post, index) => (
-                <div className="rankRow" key={post.id}>
-                  <div className="rankLeft">
-                    <span className="rankNo">{index + 1}</span>
-                    <div>
-                      <strong>{post.username}</strong>
-                      <p>{post.tier}</p>
-                    </div>
+            {rankedPosts.map((post, index) => (
+              <div className="rankRow" key={post.id}>
+                <div className="rankLeft">
+                  <span className="rankNo">{index + 1}</span>
+
+                  <div>
+                    <strong>{post.username}</strong>
+                    <p>{post.tier}</p>
                   </div>
-                  <b>{post.score}</b>
                 </div>
-              ))}
+
+                <b>{post.score}</b>
+              </div>
+            ))}
           </section>
 
           <section className="panel">
             <div className="panelTitle">
               <h2>⚔️ Duel live</h2>
-              <span className="pillLight">Round 2 / 3</span>
+              <span className="pillLight">Round {duel.round} / 3</span>
             </div>
 
             <div className="duelGrid">
-              <button className="duelBox">
-                <span>@DeepRoom</span>
-                <strong>89</strong>
+              <button className="duelBox" onClick={() => voteDuel("a")}>
+                <span>{duel.a}</span>
+                <strong>{duel.aScore}</strong>
+
                 <div className="meter">
-                  <i style={{ width: "47%" }} />
+                  <i style={{ width: `${(duel.aVotes / totalVotes) * 100}%` }} />
                 </div>
-                <small>214 votes</small>
+
+                <small>{duel.aVotes} votes</small>
               </button>
 
-              <button className="duelBox">
-                <span>@GasDealer</span>
-                <strong>91</strong>
+              <button className="duelBox" onClick={() => voteDuel("b")}>
+                <span>{duel.b}</span>
+                <strong>{duel.bScore}</strong>
+
                 <div className="meter">
-                  <i style={{ width: "53%" }} />
+                  <i style={{ width: `${(duel.bVotes / totalVotes) * 100}%` }} />
                 </div>
-                <small>241 votes</small>
+
+                <small>{duel.bVotes} votes</small>
               </button>
             </div>
 
@@ -239,6 +405,7 @@ export default function App() {
               <h1>Global live room</h1>
               <p>One chat. One feed. Everyone live.</p>
             </div>
+
             <span>Live feed</span>
           </div>
 
@@ -247,8 +414,10 @@ export default function App() {
               <div className="postTop">
                 <div>
                   <div className="eyebrow">
-                    <i /> Live drop
+                    <i />
+                    Live drop
                   </div>
+
                   <h3>{post.username}</h3>
                   <p>
                     {post.tier} · {post.duration}
@@ -263,26 +432,17 @@ export default function App() {
 
               <div className="player">
                 <button className="play">▶</button>
-                <div className="wave">
-                  {Array.from({ length: 24 }).map((_, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        height: `${Math.max(
-                          8,
-                          Math.min(58, Math.random() * 50 + post.score / 8)
-                        )}px`
-                      }}
-                    />
-                  ))}
-                </div>
+                <Wave score={post.score || 60} />
               </div>
 
               <div className="reactions">
-                <button>💀 {post.reactions || 0}</button>
-                <button>🔥 Fire</button>
-                <button>☣️ Toxic</button>
-                <button>Vote</button>
+                <button onClick={() => reactPost(post)}>
+                  💀 {post.reactions || 0}
+                </button>
+
+                <button onClick={() => reactPost(post)}>🔥 Fire</button>
+                <button onClick={() => reactPost(post)}>☣️ Toxic</button>
+                <button onClick={() => reactPost(post)}>Vote</button>
               </div>
             </article>
           ))}
@@ -312,6 +472,7 @@ export default function App() {
               }}
               placeholder="Say something..."
             />
+
             <button onClick={sendMessage}>➤</button>
           </div>
         </aside>
